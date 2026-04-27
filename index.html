@@ -88,7 +88,7 @@
             color: #000000;
         }
 
-        /* Плашка с комментарием Чарли */
+        /* Всплывающая плашка */
         #toast {
             display: none;
             position: fixed;
@@ -97,15 +97,40 @@
             background: #ffffff;
             color: #000000;
             border: 2px solid #000;
-            padding: 12px 20px;
+            padding: 16px 20px;
             z-index: 10;
             text-align: center;
             font-weight: bold;
-            font-size: 1rem;
-            max-width: 280px;
+            font-size: 0.9rem;
+            max-width: 300px;
             box-shadow: 0 0 0 2px #fff;
+            line-height: 1.4;
         }
-        #toast .icon { font-size: 2rem; display: block; margin-bottom: 4px; }
+        #toast .icon {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: 6px;
+        }
+        #toast .toast-text {
+            margin-bottom: 12px;
+        }
+        .toast-button {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 6px 18px;
+            border: 2px solid #000;
+            background: #000;
+            color: #fff;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            transition: background 0.1s, color 0.1s;
+        }
+        .toast-button:active {
+            background: #fff;
+            color: #000;
+        }
     </style>
 </head>
 <body>
@@ -119,9 +144,10 @@
     </div>
     <button id="restartButton">Начать забег</button>
 
+    <!-- Плашка с сообщением -->
     <div id="toast">
         <span class="icon">🧑</span>
-        <span id="toastText"></span>
+        <div class="toast-text" id="toastText"></div>
     </div>
 
     <script>
@@ -130,12 +156,13 @@
             const ctx = canvas.getContext('2d');
             const toast = document.getElementById('toast');
             const toastText = document.getElementById('toastText');
+            const toastIcon = toast.querySelector('.icon');
             const ROWS = 10, COLS = 10;
             let CELL_SIZE = 32;
 
             function resizeCanvas() {
                 const maxWidth = window.innerWidth - 24;
-                const usedHeight = 200 + 160 + 60; // примерная высота остальных элементов
+                const usedHeight = 200 + 160 + 60;
                 const maxHeight = window.innerHeight - usedHeight;
                 CELL_SIZE = Math.floor(Math.min(maxWidth / COLS, maxHeight / ROWS));
                 if (CELL_SIZE < 14) CELL_SIZE = 14;
@@ -200,13 +227,11 @@
                         if (maze[r][c].right)  { ctx.beginPath(); ctx.moveTo(x+CELL_SIZE, y); ctx.lineTo(x+CELL_SIZE, y+CELL_SIZE); ctx.stroke(); }
                     }
                 }
-                // Старт: белый круг
                 ctx.fillStyle = '#ffffff';
                 ctx.font = `bold ${CELL_SIZE*0.7}px "SF Mono", "Courier New", monospace`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText('○', CELL_SIZE/2, CELL_SIZE/2);
-                // Финиш: белый флаг (эмодзи заменим на белый символ или оставим 🏁)
                 ctx.fillText('🏁', (COLS-1)*CELL_SIZE + CELL_SIZE/2, (ROWS-1)*CELL_SIZE + CELL_SIZE/2);
             }
 
@@ -268,20 +293,34 @@
                 else if (playerFinished && mouseFinished) endGame(false);
             }
 
-            function showToast(text) {
+            function showWinToast() {
+                toastIcon.style.display = 'none';
+                toastText.innerHTML = `
+                    <p style="margin-bottom:6px;">Вы хорошо умеете находить выходы в лабиринтах! А значит, легко найдете дорогу и вход в ДК «Химволокно».</p>
+                    <p style="margin-bottom:8px;">Приходите 3 мая в 17:00 часов на спектакль «Дневник Чарли Гордона»</p>
+                    <a href="https://tver.kassir.ru/teatr/dnevnik-charli-gordona" target="_blank" class="toast-button">Билеты тут</a>
+                `;
+                toast.style.display = 'block';
+            }
+
+            function showLoseToast(text) {
+                toastIcon.style.display = 'block';
                 toastText.textContent = text;
                 toast.style.display = 'block';
             }
-            function hideToast() { toast.style.display = 'none'; }
+
+            function hideToast() {
+                toast.style.display = 'none';
+            }
 
             function endGame(win) {
                 gameState = win ? 'win' : 'lose';
                 if (win) {
                     loseStreak = 0;
-                    hideToast();
+                    showWinToast();
                 } else {
                     loseStreak++;
-                    showToast(loseStreak === 1 ? 'У-у-у, какой хитрющий мышь' : 'Когда-нибудь я тебя обгоню!');
+                    showLoseToast(loseStreak === 1 ? 'У-у-у, какой хитрющий мышь' : 'Когда-нибудь я тебя обгоню!');
                 }
                 document.getElementById('restartButton').textContent = 'Играть снова';
             }
