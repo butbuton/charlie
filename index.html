@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Чарли vs Мышь</title>
+    <!-- Telegram Web App обязательный скрипт -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            font-family: 'SF Mono', 'Courier New', monospace;
+        }
+        body {
+            background: #ffffff;
+            color: #000000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            padding: 12px 8px;
+            overflow-x: hidden;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        #timer-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        #timer {
+            font-size: 2rem;
+            font-weight: 700;
+            padding: 4px 18px;
+            border: 2px solid #000;
+            background: #fff;
+        }
+        #message {
+            font-size: 1rem;
+            font-weight: 700;
+            text-align: center;
+            min-height: 1.8em;
+            margin: 4px 0;
+        }
+        .game-panels {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            max-width: 700px;
+        }
+        .panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            border: 2px solid #000;
+            padding: 8px;
+            border-radius: 0;
+        }
+        .panel-label {
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        canvas {
+            display: block;
+            background: #fff;
+            border: 1px solid #000;
+            width: 100%;
+            height: auto;
+        }
+        /* D-pad кнопки */
+        .dpad {
+            display: grid;
+            grid-template-columns: 48px 48px 48px;
+            grid-template-rows: 48px 48px 48px;
+            gap: 4px;
+            margin-top: 10px;
+        }
+        .dpad button {
+            background: #fff;
+            border: 2px solid #000;
+            font-size: 1.4rem;
+            font-weight: bold;
+            cursor: pointer;
+            color: #000;
+            transition: background 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border-radius: 0;
+        }
+        .dpad button:active {
+            background: #000;
+            color: #fff;
+        }
+        .dpad .empty {
+            border: none;
+            background: transparent;
+            pointer-events: none;
+        }
+        #restartButton {
+            margin-top: 14px;
+            padding: 12px 28px;
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: 2px solid #000;
+            background: #fff;
+            color: #000;
+            cursor: pointer;
+            transition: 0.1s;
+            margin-bottom: 20px;
+        }
+        #restartButton:active {
+            background: #000;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <h1>Чарли 🧑 vs Мышь 🐭</h1>
+    <div id="timer-panel">
+        <span id="timer">60</span>
+    </div>
+    <div id="message"></div>
+
+    <div class="game-panels">
+        <div class="panel">
+            <div class="panel-label">Чарли</div>
+            <canvas id="canvasCharlie"></canvas>
+            <div class="dpad" id="dpadCharlie">
+                <div class="empty"></div>
+                <button id="btnUp">↑</button>
+                <div class="empty"></div>
+                <button id="btnLeft">←</button>
+                <div class="empty"></div>
+                <button id="btnRight">→</button>
+                <div class="empty"></div>
+                <button id="btnDown">↓</button>
+                <div class="empty"></div>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-label">Мышь</div>
+            <canvas id="canvasMouse"></canvas>
+        </div>
+    </div>
+
+    <button id="restartButton">Начать забег</button>
+
+    <script>
+        (function() {
+            // ========== TELEGRAM INIT ==========
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            tg.expand(); // на весь экран
+            // Устанавливаем черно-белую тему принудительно
+            tg.setHeaderColor('#ffffff');
+            tg.setBackgroundColor('#ffffff');
+            // Можно скрыть кнопку "Назад" если не нужна (оставим как есть)
+
+            // ========== НАСТРОЙКИ ЛАБИРИНТА ==========
+            const ROWS = 10;
+            const COLS = 10;
+            let CELL_SIZE = 32; // будет пересчитываться
+
+            const canvasCharlie = document.getElementById('canvasCharlie');
+            const ctxCharlie = canvasCharlie.getContext('2d');
+            const canvasMouse = document.getElementById('canvasMouse');
+            const ctxMouse = canvasMouse.getContext('2d');
+
+            // Адаптация размера клетки под ширину экрана
+            function resizeCanvases() {
+                const maxWidth = Math.min(window.innerWidth - 40, 360); // максимум 360px
+                CELL_SIZE = Math.floor(maxWidth / COLS);
+                const canvasSize = CELL_SIZE * COLS;
+                canvasCharlie.width = canvasSize;
+                canvasCharlie.height = canvasSize;
+                canvasMouse.width = canvasSize;
+                canvasMouse.height = canvasSize;
+            }
+            window.addEventListener('resize', resizeCanvases);
+            resizeCanvases();
+
+            // ========== СОСТОЯНИЕ ИГРЫ ==========
+            let maze = [];
+            let player = { row: 0, col: 0 };
+            let mouse = { row: 0, col: 0 };
+            let mousePath = [];
+            let mouseStep = 0;
+            let gameState = 'idle'; // idle, playing, win, lose
+            let startTime = 0;
+            const GAME_DURATION = 60;
+            let lastPlayerMove = 0;
+            const PLAYER_MOVE_DELAY = 110;
+            const MOUSE_MOVE_DELAY = 270;
+            let mouseNextMove = 0;
+
+            let playerFinished = false;
+            let mouseFinished = false;
+
+            const finishRow = ROWS - 1;
+            const finishCol = COLS - 1;
+
+            // ========== ГЕНЕРАЦИЯ ЛАБИРИНТА ==========
+            function generateMaze(rows, cols) {
+                const cells = Array.from({length: rows}, () => Array.from({length: cols}, () => ({
+                    top: true, right: true, bottom: true, left: true, visited: false
+                })));
+                const stack = [{r: 0, c: 0}];
+                cells[0][0].visited = true;
+                const dirs = [
+                    {dr: -1, dc: 0, wall: 'top', opp: 'bottom'},
+                    {dr: 1, dc: 0, wall: 'bottom', opp: 'top'},
+                    {dr: 0, dc: -1, wall: 'left', opp: 'right'},
+                    {dr: 0, dc: 1, wall: 'right', opp: 'left'}
+                ];
+                while (stack.length) {
+                    const cur = stack[stack.length-1];
+                    const neighbors = [];
+                    for (const d of dirs) {
+                        const nr = cur.r + d.dr, nc = cur.c + d.dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !cells[nr][nc].visited) {
+                            neighbors.push({r: nr, c: nc, wall: d.wall, opp: d.opp});
+                        }
+                    }
+                    if (neighbors.length) {
+                        const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                        cells[cur.r][cur.c][next.wall] = false;
+                        cells[next.r][next.c][next.opp] = false;
+                        cells[next.r][next.c].visited = true;
+                        stack.push({r: next.r, c: next.c});
+                    } else {
+                        stack.pop();
+                    }
+                }
+                return cells;
+            }
+
+            // ========== ОТРИСОВКА МОНОХРОМ ==========
+            function drawMaze(ctx, maze) {
+                ctx.clearRect(0, 0, COLS*CELL_SIZE, COLS*CELL_SIZE);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'square';
+
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        const x = c * CELL_SIZE, y = r * CELL_SIZE;
+                        if (maze[r][c].top) {
+                            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+CELL_SIZE, y); ctx.stroke();
+                        }
+                        if (maze[r][c].left) {
+                            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y+CELL_SIZE); ctx.stroke();
+                        }
+                        if (maze[r][c].bottom) {
+                            ctx.beginPath(); ctx.moveTo(x, y+CELL_SIZE); ctx.lineTo(x+CELL_SIZE, y+CELL_SIZE); ctx.stroke();
+                        }
+                        if (maze[r][c].right) {
+                            ctx.beginPath(); ctx.moveTo(x+CELL_SIZE, y); ctx.lineTo(x+CELL_SIZE, y+CELL_SIZE); ctx.stroke();
+                        }
+                    }
+                }
+
+                // Старт: буква S
+                ctx.fillStyle = '#000';
+                ctx.font = `bold ${CELL_SIZE*0.6}px "SF Mono", "Courier New", monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('S', CELL_SIZE/2, CELL_SIZE/2);
+
+                // Финиш: буква F
+                ctx.fillText('F', (COLS-1)*CELL_SIZE + CELL_SIZE/2, (ROWS-1)*CELL_SIZE + CELL_SIZE/2);
+            }
+
+            function drawCharacter(ctx, row, col, symbol) {
+                const x = col * CELL_SIZE + CELL_SIZE/2;
+                const y = row * CELL_SIZE + CELL_SIZE/2;
+                ctx.fillStyle = '#000';
+                ctx.font = `bold ${CELL_SIZE*0.7}px "SF Mono", "Courier New", monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(symbol, x, y);
+            }
+
+            // ========== A* ДЛЯ МЫШИ ==========
+            function heuristic(r1, c1, r2, c2) { return Math.abs(r1-r2) + Math.abs(c1-c2); }
+            function getNeighbors(maze, r, c) {
+                const res = [];
+                if (!maze[r][c].top && r > 0) res.push({row: r-1, col: c});
+                if (!maze[r][c].bottom && r < ROWS-1) res.push({row: r+1, col: c});
+                if (!maze[r][c].left && c > 0) res.push({row: r, col: c-1});
+                if (!maze[r][c].right && c < COLS-1) res.push({row: r, col: c+1});
+                return res;
+            }
+            function findPath(maze, sr, sc, er, ec) {
+                const openSet = [{row: sr, col: sc, g:0, f: heuristic(sr,sc,er,ec), parent: null}];
+                const closed = new Set();
+                while (openSet.length) {
+                    openSet.sort((a,b)=>a.f-b.f);
+                    const cur = openSet.shift();
+                    const key = `${cur.row},${cur.col}`;
+                    if (cur.row===er && cur.col===ec) {
+                        const path = [];
+                        let node = cur;
+                        while (node) { path.unshift({row: node.row, col: node.col}); node = node.parent; }
+                        return path;
+                    }
+                    closed.add(key);
+                    for (const n of getNeighbors(maze, cur.row, cur.col)) {
+                        const nk = `${n.row},${n.col}`;
+                        if (closed.has(nk)) continue;
+                        const tg = cur.g + 1;
+                        const exist = openSet.find(o => o.row===n.row && o.col===n.col);
+                        if (exist) {
+                            if (tg < exist.g) { exist.g = tg; exist.f = tg + heuristic(n.row,n.col,er,ec); exist.parent = cur; }
+                        } else {
+                            openSet.push({row: n.row, col: n.col, g: tg, f: tg+heuristic(n.row,n.col,er,ec), parent: cur});
+                        }
+                    }
+                }
+                return [];
+            }
+
+            // ========== ПРОВЕРКА ПОБЕДЫ ==========
+            function checkGameOver() {
+                if (gameState !== 'playing') return;
+                if (playerFinished && !mouseFinished) endGame(true);
+                else if (mouseFinished && !playerFinished) endGame(false);
+                else if (playerFinished && mouseFinished) endGame(false); // нужно обогнать
+            }
+
+            function endGame(win) {
+                gameState = win ? 'win' : 'lose';
+                document.getElementById('message').textContent = win ? 'Чарли выиграл!' : 'Мышь победила!';
+                document.getElementById('restartButton').textContent = 'Играть снова';
+            }
+
+            // ========== ГЛАВНЫЙ ЦИКЛ ==========
+            function update() {
+                if (gameState !== 'playing') return;
+                const now = Date.now();
+
+                // Движение мыши
+                if (!mouseFinished && now >= mouseNextMove && mouseStep < mousePath.length) {
+                    const next = mousePath[mouseStep];
+                    mouse.row = next.row;
+                    mouse.col = next.col;
+                    mouseStep++;
+                    mouseNextMove = now + MOUSE_MOVE_DELAY;
+                    if (mouseStep >= mousePath.length) {
+                        mouseFinished = true;
+                        checkGameOver();
+                    }
+                } else if (mouseStep >= mousePath.length) {
+                    mouseFinished = true;
+                    checkGameOver();
+                }
+
+                // Таймер
+                const elapsed = (now - startTime) / 1000;
+                const remaining = Math.max(0, GAME_DURATION - Math.floor(elapsed));
+                document.getElementById('timer').textContent = remaining;
+                if (remaining <= 0 && gameState === 'playing') endGame(false);
+            }
+
+            function draw() {
+                drawMaze(ctxCharlie, maze);
+                drawCharacter(ctxCharlie, player.row, player.col, 'C');
+
+                drawMaze(ctxMouse, maze);
+                drawCharacter(ctxMouse, mouse.row, mouse.col, 'M');
+            }
+
+            function gameLoop() {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            // ========== УПРАВЛЕНИЕ ИГРОКОМ ==========
+            function tryMovePlayer(dRow, dCol) {
+                if (gameState !== 'playing') return false;
+                const now = Date.now();
+                if (now - lastPlayerMove < PLAYER_MOVE_DELAY) return false;
+
+                let newRow = player.row + dRow;
+                let newCol = player.col + dCol;
+                if (newRow < 0 || newRow >= ROWS || newCol < 0 || newCol >= COLS) return false;
+
+                // Проверка стен
+                if (dRow === -1 && maze[player.row][player.col].top) return false;
+                if (dRow === 1 && maze[player.row][player.col].bottom) return false;
+                if (dCol === -1 && maze[player.row][player.col].left) return false;
+                if (dCol === 1 && maze[player.row][player.col].right) return false;
+
+                player.row = newRow;
+                player.col = newCol;
+                lastPlayerMove = now;
+                if (player.row === finishRow && player.col === finishCol) {
+                    playerFinished = true;
+                    checkGameOver();
+                }
+                return true;
+            }
+
+            // Клавиатура (для десктопа)
+            document.addEventListener('keydown', (e) => {
+                if (gameState !== 'playing') return;
+                const key = e.key;
+                e.preventDefault();
+                if (key === 'ArrowUp' || key === 'w' || key === 'W') tryMovePlayer(-1, 0);
+                else if (key === 'ArrowDown' || key === 's' || key === 'S') tryMovePlayer(1, 0);
+                else if (key === 'ArrowLeft' || key === 'a' || key === 'A') tryMovePlayer(0, -1);
+                else if (key === 'ArrowRight' || key === 'd' || key === 'D') tryMovePlayer(0, 1);
+            });
+
+            // Сенсорные кнопки
+            document.getElementById('btnUp').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(-1,0); });
+            document.getElementById('btnDown').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(1,0); });
+            document.getElementById('btnLeft').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(0,-1); });
+            document.getElementById('btnRight').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(0,1); });
+
+            // Предотвращаем зум двойным тапом на кнопках
+            document.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); });
+            });
+
+            // ========== СТАРТ / РЕСТАРТ ==========
+            function restartGame() {
+                maze = generateMaze(ROWS, COLS);
+                player = { row: 0, col: 0 };
+                mouse = { row: 0, col: 0 };
+                mousePath = findPath(maze, 0, 0, finishRow, finishCol);
+                mouseStep = 1;
+                if (mousePath.length > 0) {
+                    mouse.row = mousePath[0].row;
+                    mouse.col = mousePath[0].col;
+                }
+                playerFinished = false;
+                mouseFinished = false;
+                gameState = 'playing';
+                startTime = Date.now();
+                lastPlayerMove = 0;
+                mouseNextMove = startTime + 900;
+                document.getElementById('message').textContent = '';
+                document.getElementById('restartButton').textContent = 'Перезапустить';
+                document.getElementById('timer').textContent = GAME_DURATION;
+            }
+
+            document.getElementById('restartButton').addEventListener('click', restartGame);
+            document.getElementById('restartButton').addEventListener('touchstart', (e) => { e.preventDefault(); restartGame(); });
+
+            // Инициализация первого лабиринта (до старта игры)
+            maze = generateMaze(ROWS, COLS);
+            mousePath = findPath(maze, 0, 0, finishRow, finishCol);
+            mouse.row = 0; mouse.col = 0;
+            player.row = 0; player.col = 0;
+            gameState = 'idle';
+            document.getElementById('timer').textContent = GAME_DURATION;
+
+            resizeCanvases();
+            requestAnimationFrame(gameLoop);
+        })();
+    </script>
+</body>
+</html>
