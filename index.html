@@ -6,20 +6,23 @@
     <title>Чарли vs Мышь</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; font-family: 'SF Mono', 'Courier New', monospace; }
-        body { background: #ffffff; color: #000000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; padding: 12px 8px; overflow-x: hidden; }
-        h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase; }
-        #timer { font-size: 2rem; font-weight: 700; padding: 4px 18px; border: 2px solid #000; background: #fff; }
-        #message { font-size: 1rem; font-weight: 700; text-align: center; min-height: 1.5em; margin: 4px 0; }
-        .game-panels { display: flex; flex-wrap: nowrap; justify-content: center; gap: 8px; }
-        .panel { border: 2px solid #000; padding: 6px; background: #fff; }
-        .panel-label { font-weight: 700; margin-bottom: 4px; text-transform: uppercase; text-align: center; }
+        body { background: #ffffff; color: #000000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; padding: 12px 8px; overflow: hidden; }
+        h1 { font-size: clamp(1rem, 5vw, 1.5rem); font-weight: 700; margin-bottom: 4px; letter-spacing: 1px; text-transform: uppercase; }
+        #timer { font-size: clamp(1.2rem, 5vw, 1.8rem); font-weight: 700; padding: 2px 16px; border: 2px solid #000; background: #fff; margin-bottom: 4px; }
+        #message { font-size: 0.9rem; font-weight: 700; text-align: center; min-height: 1.2em; margin: 2px 0; }
+        .game-panels { display: flex; flex-wrap: nowrap; justify-content: center; gap: 6px; }
+        .panel { border: 2px solid #000; padding: 6px; background: #fff; display: flex; flex-direction: column; align-items: center; }
+        .panel-label { font-weight: 700; margin-bottom: 2px; text-transform: uppercase; font-size: 0.8rem; }
         canvas { background: #fff; border: 1px solid #000; display: block; }
-        .dpad { display: grid; grid-template-columns: 48px 48px 48px; grid-template-rows: 48px 48px 48px; gap: 4px; margin-top: 8px; }
-        .dpad button { background: #fff; border: 2px solid #000; font-size: 1.5rem; font-weight: bold; cursor: pointer; color: #000; transition: background 0.1s; border-radius: 0; }
-        .dpad button:active { background: #000; color: #fff; }
-        .dpad .empty { border: none; background: transparent; pointer-events: none; }
-        #restartButton { margin: 14px 0 25px; padding: 12px 30px; font-size: 1rem; font-weight: 700; text-transform: uppercase; border: 2px solid #000; background: #fff; color: #000; cursor: pointer; }
+        .charlie-comment { font-size: 0.7rem; margin-top: 4px; text-align: center; min-height: 1.3em; color: #000; font-style: italic; }
+        #restartButton { margin: 8px 0 12px; padding: 8px 22px; font-size: 0.9rem; font-weight: 700; text-transform: uppercase; border: 2px solid #000; background: #fff; color: #000; cursor: pointer; }
         #restartButton:active { background: #000; color: #fff; }
+        .touch-hint { font-size: 0.7rem; margin-top: 4px; color: #333; display: none; text-align: center; max-width: 300px; }
+        @media (hover: none) and (pointer: coarse) { .touch-hint { display: block; } }
+        @media (max-width: 600px) {
+            .game-panels { flex-direction: column; align-items: center; gap: 8px; }
+            .panel { width: 100%; max-width: 360px; }
+        }
     </style>
 </head>
 <body>
@@ -30,11 +33,7 @@
         <div class="panel">
             <div class="panel-label">Чарли</div>
             <canvas id="canvasCharlie"></canvas>
-            <div class="dpad">
-                <div class="empty"></div><button id="btnUp">↑</button><div class="empty"></div>
-                <button id="btnLeft">←</button><div class="empty"></div><button id="btnRight">→</button>
-                <div class="empty"></div><button id="btnDown">↓</button><div class="empty"></div>
-            </div>
+            <div class="charlie-comment" id="charlieComment"></div>
         </div>
         <div class="panel">
             <div class="panel-label">Мышь</div>
@@ -42,6 +41,7 @@
         </div>
     </div>
     <button id="restartButton">Начать забег</button>
+    <div class="touch-hint">📱 Управление касанием:<br>тап вверху – вверх, внизу – вниз,<br>слева – влево, справа – вправо</div>
 
     <script>
         (function() {
@@ -51,16 +51,34 @@
             const ctxCharlie = canvasCharlie.getContext('2d');
             const canvasMouse = document.getElementById('canvasMouse');
             const ctxMouse = canvasMouse.getContext('2d');
+            const charlieComment = document.getElementById('charlieComment');
 
-            // Размер канвасов подгоняется так, чтобы оба лабиринта поместились в ширину экрана
+            let loseStreak = 0; // счётчик поражений подряд
+
             function resizeCanvases() {
-                const totalWidth = window.innerWidth - 32; // отступы body
-                const gap = 8; // gap между панелями
-                const panelBorder = 4; // примерно 2px рамка с каждой стороны двух панелей + padding
-                // Доступная ширина на два канваса
-                const availableWidth = totalWidth - gap - 12; // 12px – примерные дополнительные отступы
-                const canvasWidth = Math.floor(availableWidth / 2);
-                CELL_SIZE = Math.floor(canvasWidth / COLS);
+                const bodyPadding = 16;
+                const gap = 6;
+                const panelPadding = 12;
+                const headerHeight = document.querySelector('h1').offsetHeight + 
+                                     document.getElementById('timer').offsetHeight + 
+                                     document.getElementById('message').offsetHeight + 20;
+                const restartHeight = document.getElementById('restartButton').offsetHeight + 12;
+                const touchHintHeight = document.querySelector('.touch-hint').offsetHeight || 0;
+                const commentHeight = charlieComment.offsetHeight || 0;
+                const usedVertical = headerHeight + restartHeight + touchHintHeight + commentHeight + bodyPadding;
+                const availableWidth = window.innerWidth - bodyPadding - gap - panelPadding;
+                const availableHeight = window.innerHeight - usedVertical;
+                const isMobile = window.innerWidth <= 600;
+                let maxCanvasWidth, maxCanvasHeight;
+                if (isMobile) {
+                    maxCanvasWidth = availableWidth;
+                    maxCanvasHeight = Math.floor(availableHeight / 2) - 4;
+                } else {
+                    maxCanvasWidth = Math.floor(availableWidth / 2);
+                    maxCanvasHeight = availableHeight;
+                }
+                CELL_SIZE = Math.floor(Math.min(maxCanvasWidth, maxCanvasHeight) / COLS);
+                if (CELL_SIZE < 12) CELL_SIZE = 12;
                 const canvasSize = CELL_SIZE * COLS;
                 canvasCharlie.width = canvasSize;
                 canvasCharlie.height = canvasSize;
@@ -77,7 +95,7 @@
             let gameState = 'idle', startTime = 0;
             const GAME_DURATION = 60;
             const PLAYER_MOVE_DELAY = 110;
-            const MOUSE_MOVE_DELAY = 405; // было 270, теперь в 1.5 раза медленнее
+            const MOUSE_MOVE_DELAY = 405;
             let lastPlayerMove = 0, mouseNextMove = 0;
             let playerFinished = false, mouseFinished = false;
             const finishRow = ROWS - 1, finishCol = COLS - 1;
@@ -126,12 +144,10 @@
                         if (maze[r][c].right) { ctx.beginPath(); ctx.moveTo(x+CELL_SIZE, y); ctx.lineTo(x+CELL_SIZE, y+CELL_SIZE); ctx.stroke(); }
                     }
                 }
-                // Старт: чёрный круг
                 ctx.fillStyle = '#000';
-                ctx.font = `${CELL_SIZE*0.8}px "SF Mono", "Courier New", monospace`;
+                ctx.font = `bold ${CELL_SIZE*0.8}px "SF Mono", "Courier New", monospace`;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText('●', CELL_SIZE/2, CELL_SIZE/2);
-                // Финиш: клетчатый флаг
                 ctx.fillText('🏁', (COLS-1)*CELL_SIZE + CELL_SIZE/2, (ROWS-1)*CELL_SIZE + CELL_SIZE/2);
             }
 
@@ -139,7 +155,7 @@
                 const x = col * CELL_SIZE + CELL_SIZE/2;
                 const y = row * CELL_SIZE + CELL_SIZE/2;
                 ctx.fillStyle = '#000';
-                ctx.font = `${CELL_SIZE*0.8}px "SF Mono", "Courier New", monospace`;
+                ctx.font = `bold ${CELL_SIZE*0.8}px "SF Mono", "Courier New", monospace`;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(symbol, x, y);
             }
@@ -188,9 +204,21 @@
                 else if (mouseFinished && !playerFinished) endGame(false);
                 else if (playerFinished && mouseFinished) endGame(false);
             }
+
             function endGame(win) {
                 gameState = win ? 'win' : 'lose';
                 document.getElementById('message').textContent = win ? 'Чарли выиграл!' : 'Мышь победила!';
+                if (win) {
+                    loseStreak = 0;
+                    charlieComment.textContent = '';
+                } else {
+                    loseStreak++;
+                    if (loseStreak === 1) {
+                        charlieComment.textContent = 'У-у-у, какой хитрющий мышь';
+                    } else if (loseStreak >= 2) {
+                        charlieComment.textContent = 'Когда-нибудь я тебя обгоню!';
+                    }
+                }
                 document.getElementById('restartButton').textContent = 'Играть снова';
             }
 
@@ -238,6 +266,25 @@
                 if (player.row === finishRow && player.col === finishCol) { playerFinished = true; checkGameOver(); }
             }
 
+            // Управление касаниями
+            function handleTouchDirection(e) {
+                if (gameState !== 'playing') return;
+                if (e.target.closest('button')) return;
+                const cx = window.innerWidth / 2;
+                const cy = window.innerHeight / 2;
+                const dx = e.clientX - cx;
+                const dy = e.clientY - cy;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    tryMovePlayer(0, dx > 0 ? 1 : -1);
+                } else {
+                    tryMovePlayer(dy > 0 ? 1 : -1, 0);
+                }
+                e.preventDefault();
+            }
+
+            document.addEventListener('pointerdown', handleTouchDirection);
+
+            // Клавиатура
             document.addEventListener('keydown', (e) => {
                 if (gameState !== 'playing') return;
                 e.preventDefault();
@@ -247,11 +294,7 @@
                 else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') tryMovePlayer(0, 1);
             });
 
-            document.getElementById('btnUp').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(-1,0); });
-            document.getElementById('btnDown').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(1,0); });
-            document.getElementById('btnLeft').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(0,-1); });
-            document.getElementById('btnRight').addEventListener('pointerdown', (e) => { e.preventDefault(); tryMovePlayer(0,1); });
-
+            // Кнопка старта/рестарта
             function restartGame() {
                 maze = generateMaze(ROWS, COLS);
                 player = { row: 0, col: 0 };
@@ -265,12 +308,20 @@
                 lastPlayerMove = 0;
                 mouseNextMove = startTime + 900;
                 document.getElementById('message').textContent = '';
+                charlieComment.textContent = '';
                 document.getElementById('restartButton').textContent = 'Перезапустить';
                 document.getElementById('timer').textContent = GAME_DURATION;
             }
 
-            document.getElementById('restartButton').addEventListener('click', restartGame);
-            document.getElementById('restartButton').addEventListener('touchstart', (e) => { e.preventDefault(); restartGame(); });
+            document.getElementById('restartButton').addEventListener('click', (e) => {
+                e.stopPropagation();
+                restartGame();
+            });
+            document.getElementById('restartButton').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                restartGame();
+            });
 
             // Инициализация
             maze = generateMaze(ROWS, COLS);
