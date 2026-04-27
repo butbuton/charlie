@@ -168,14 +168,20 @@
 
     <script>
         (function() {
-            // ========== TELEGRAM INIT ==========
-            const tg = window.Telegram.WebApp;
-            tg.ready();
-            tg.expand(); // на весь экран
-            // Устанавливаем черно-белую тему принудительно
-            tg.setHeaderColor('#ffffff');
-            tg.setBackgroundColor('#ffffff');
-            // Можно скрыть кнопку "Назад" если не нужна (оставим как есть)
+      
+// ========== TELEGRAM INIT (безопасно) ==========
+let tg = null;
+try {
+    if (window.Telegram && window.Telegram.WebApp) {
+        tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        tg.setHeaderColor('#ffffff');
+        tg.setBackgroundColor('#ffffff');
+    }
+} catch (e) {
+    // не в Telegram – просто играем в браузере
+}
 
             // ========== НАСТРОЙКИ ЛАБИРИНТА ==========
             const ROWS = 10;
