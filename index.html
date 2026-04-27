@@ -46,7 +46,7 @@
             grid-template-columns: 48px 48px 48px;
             grid-template-rows: 48px 48px 48px;
             gap: 4px;
-            margin: 16px 0 20px;
+            margin: 16px 0 40px; /* увеличен нижний отступ для мобильных */
         }
         .dpad button {
             background: #000;
@@ -88,7 +88,7 @@
             color: #000000;
         }
 
-        /* Всплывающая плашка */
+        /* Плашка */
         #toast {
             display: none;
             position: fixed;
@@ -131,6 +131,27 @@
             background: #fff;
             color: #000;
         }
+
+        /* Десктоп: скрываем D-pad */
+        @media (min-width: 601px) {
+            .dpad {
+                display: none;
+            }
+            #restartButton {
+                margin-top: 20px; /* дополнительный отступ сверху, чтобы кнопка не прилипала к canvas */
+            }
+        }
+
+        /* Мобильные: дополнительно увеличиваем расстояние между D-pad и кнопкой */
+        @media (max-width: 600px) {
+            .dpad {
+                margin-bottom: 50px; /* ещё больше отступ */
+            }
+            #restartButton {
+                margin-top: 0;
+                margin-bottom: 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -144,7 +165,6 @@
     </div>
     <button id="restartButton">Начать забег</button>
 
-    <!-- Плашка с сообщением -->
     <div id="toast">
         <span class="icon">🧑</span>
         <div class="toast-text" id="toastText"></div>
@@ -296,7 +316,7 @@
             function showWinToast() {
                 toastIcon.style.display = 'none';
                 toastText.innerHTML = `
-                    <p style="margin-bottom:6px;">Вы хорошо умеете находить выходы в лабиринтах! А значит, легко найдете дорогу и вход в ДК «Химволокно».</p>
+                    <p style="margin-bottom:6px;">Вы хорошо разбираетесь в лабиринтах! А значит, легко найдете дорогу в ДК «Химволокно».</p>
                     <p style="margin-bottom:8px;">Приходите 3 мая в 17:00 часов на спектакль «Дневник Чарли Гордона»</p>
                     <a href="https://tver.kassir.ru/teatr/dnevnik-charli-gordona" target="_blank" class="toast-button">Билеты тут</a>
                 `;
