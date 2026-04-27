@@ -9,16 +9,16 @@
         body { background: #ffffff; color: #000000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; padding: 12px 8px; overflow-x: hidden; }
         h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase; }
         #timer { font-size: 2rem; font-weight: 700; padding: 4px 18px; border: 2px solid #000; background: #fff; }
-        #message { font-size: 1rem; font-weight: 700; text-align: center; min-height: 1.8em; margin: 4px 0; }
-        .game-panels { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
-        .panel { border: 2px solid #000; padding: 8px; background: #fff; }
-        .panel-label { font-weight: 700; margin-bottom: 4px; text-transform: uppercase; }
-        canvas { background: #fff; border: 1px solid #000; width: 100%; height: auto; display: block; }
-        .dpad { display: grid; grid-template-columns: 48px 48px 48px; grid-template-rows: 48px 48px 48px; gap: 4px; margin-top: 10px; }
-        .dpad button { background: #fff; border: 2px solid #000; font-size: 1.4rem; font-weight: bold; cursor: pointer; color: #000; transition: background 0.1s; }
+        #message { font-size: 1rem; font-weight: 700; text-align: center; min-height: 1.5em; margin: 4px 0; }
+        .game-panels { display: flex; flex-wrap: nowrap; justify-content: center; gap: 8px; }
+        .panel { border: 2px solid #000; padding: 6px; background: #fff; }
+        .panel-label { font-weight: 700; margin-bottom: 4px; text-transform: uppercase; text-align: center; }
+        canvas { background: #fff; border: 1px solid #000; display: block; }
+        .dpad { display: grid; grid-template-columns: 48px 48px 48px; grid-template-rows: 48px 48px 48px; gap: 4px; margin-top: 8px; }
+        .dpad button { background: #fff; border: 2px solid #000; font-size: 1.5rem; font-weight: bold; cursor: pointer; color: #000; transition: background 0.1s; border-radius: 0; }
         .dpad button:active { background: #000; color: #fff; }
         .dpad .empty { border: none; background: transparent; pointer-events: none; }
-        #restartButton { margin-top: 14px; padding: 12px 28px; font-size: 1rem; font-weight: 700; text-transform: uppercase; border: 2px solid #000; background: #fff; color: #000; cursor: pointer; }
+        #restartButton { margin: 14px 0 25px; padding: 12px 30px; font-size: 1rem; font-weight: 700; text-transform: uppercase; border: 2px solid #000; background: #fff; color: #000; cursor: pointer; }
         #restartButton:active { background: #000; color: #fff; }
     </style>
 </head>
@@ -52,9 +52,15 @@
             const canvasMouse = document.getElementById('canvasMouse');
             const ctxMouse = canvasMouse.getContext('2d');
 
+            // Размер канвасов подгоняется так, чтобы оба лабиринта поместились в ширину экрана
             function resizeCanvases() {
-                const maxWidth = Math.min(window.innerWidth - 40, 360);
-                CELL_SIZE = Math.floor(maxWidth / COLS);
+                const totalWidth = window.innerWidth - 32; // отступы body
+                const gap = 8; // gap между панелями
+                const panelBorder = 4; // примерно 2px рамка с каждой стороны двух панелей + padding
+                // Доступная ширина на два канваса
+                const availableWidth = totalWidth - gap - 12; // 12px – примерные дополнительные отступы
+                const canvasWidth = Math.floor(availableWidth / 2);
+                CELL_SIZE = Math.floor(canvasWidth / COLS);
                 const canvasSize = CELL_SIZE * COLS;
                 canvasCharlie.width = canvasSize;
                 canvasCharlie.height = canvasSize;
@@ -71,7 +77,7 @@
             let gameState = 'idle', startTime = 0;
             const GAME_DURATION = 60;
             const PLAYER_MOVE_DELAY = 110;
-            const MOUSE_MOVE_DELAY = 270;
+            const MOUSE_MOVE_DELAY = 405; // было 270, теперь в 1.5 раза медленнее
             let lastPlayerMove = 0, mouseNextMove = 0;
             let playerFinished = false, mouseFinished = false;
             const finishRow = ROWS - 1, finishCol = COLS - 1;
@@ -120,17 +126,20 @@
                         if (maze[r][c].right) { ctx.beginPath(); ctx.moveTo(x+CELL_SIZE, y); ctx.lineTo(x+CELL_SIZE, y+CELL_SIZE); ctx.stroke(); }
                     }
                 }
+                // Старт: чёрный круг
                 ctx.fillStyle = '#000';
-                ctx.font = `bold ${CELL_SIZE*0.6}px "SF Mono","Courier New",monospace`;
+                ctx.font = `${CELL_SIZE*0.8}px "SF Mono", "Courier New", monospace`;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText('S', CELL_SIZE/2, CELL_SIZE/2);
-                ctx.fillText('F', (COLS-1)*CELL_SIZE + CELL_SIZE/2, (ROWS-1)*CELL_SIZE + CELL_SIZE/2);
+                ctx.fillText('●', CELL_SIZE/2, CELL_SIZE/2);
+                // Финиш: клетчатый флаг
+                ctx.fillText('🏁', (COLS-1)*CELL_SIZE + CELL_SIZE/2, (ROWS-1)*CELL_SIZE + CELL_SIZE/2);
             }
 
             function drawCharacter(ctx, row, col, symbol) {
-                const x = col * CELL_SIZE + CELL_SIZE/2, y = row * CELL_SIZE + CELL_SIZE/2;
+                const x = col * CELL_SIZE + CELL_SIZE/2;
+                const y = row * CELL_SIZE + CELL_SIZE/2;
                 ctx.fillStyle = '#000';
-                ctx.font = `bold ${CELL_SIZE*0.7}px "SF Mono","Courier New",monospace`;
+                ctx.font = `${CELL_SIZE*0.8}px "SF Mono", "Courier New", monospace`;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(symbol, x, y);
             }
@@ -203,9 +212,9 @@
 
             function draw() {
                 drawMaze(ctxCharlie, maze);
-                drawCharacter(ctxCharlie, player.row, player.col, 'C');
+                drawCharacter(ctxCharlie, player.row, player.col, '🧑');
                 drawMaze(ctxMouse, maze);
-                drawCharacter(ctxMouse, mouse.row, mouse.col, 'M');
+                drawCharacter(ctxMouse, mouse.row, mouse.col, '🐭');
             }
 
             function gameLoop() {
@@ -263,7 +272,7 @@
             document.getElementById('restartButton').addEventListener('click', restartGame);
             document.getElementById('restartButton').addEventListener('touchstart', (e) => { e.preventDefault(); restartGame(); });
 
-            // Начальная инициализация (отрисовка до старта)
+            // Инициализация
             maze = generateMaze(ROWS, COLS);
             mousePath = findPath(maze, 0, 0, finishRow, finishCol);
             mouse.row = 0; mouse.col = 0;
